@@ -551,10 +551,11 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
               id="meeting-type"
               value={meetingType}
               onChange={(e) => setMeetingType(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent hover:border-gray-400 transition-colors"
+              style={{ color: '#111827' }}
             >
               {availableMeetingTypes.map((type) => (
-                <option key={type.id} value={type.id} title={type.description}>
+                <option key={type.id} value={type.id} title={type.description} className="text-gray-900 bg-white">
                   {type.name}
                 </option>
               ))}
