@@ -178,7 +178,7 @@ function extractParticipants(transcript: string): string[] {
 
 export async function POST(request: NextRequest) {
   try {
-    const { transcript, participants, summary } = await request.json();
+    const { transcript, participants, summary, previousDiagram } = await request.json();
     
     if (!transcript || typeof transcript !== 'string') {
       return NextResponse.json(
@@ -214,6 +214,15 @@ Analyze the meeting content and create a system architecture diagram that shows:
 4. **External Dependencies**: Third-party services, APIs, external systems
 5. **Technical Stack**: Technologies, frameworks, platforms mentioned
 6. **Infrastructure**: Deployment, hosting, storage solutions
+
+CONTEXT-AWARE GENERATION:
+- If a previous diagram is provided, build upon it by deleting redudant components, connections, or details
+- Only add new elements if they are discussed in the current transcript
+- Preserve existing structure and relationships from the previous diagram.
+- Delete repetitive components and elements that might be conflicting with the new transcript
+- Maintain consistency with the previous diagram's style and naming conventions
+- If the previous diagram is comprehensive, focus on incremental updates rather than complete rewrites
+- Dont ever exceed more than 10 nodes in the diagram
 
 MERMAID SYNTAX RULES:
 1. Return ONLY valid Mermaid syntax - no explanations, no markdown code blocks
@@ -252,7 +261,7 @@ FOCUS ON TECHNICAL SYSTEMS:
           role: 'user',
           content: `Create a system architecture diagram based on this meeting discussion.
 
-${summary ? `MEETING SUMMARY:\n${summary}\n\n` : ''}PARTICIPANTS: ${meetingParticipants.join(', ')}
+${summary ? `MEETING SUMMARY:\n${summary}\n\n` : ''}${previousDiagram ? `PREVIOUS DIAGRAM CONTEXT:\n\`\`\`mermaid\n${previousDiagram}\n\`\`\`\n\n` : ''}PARTICIPANTS: ${meetingParticipants.join(', ')}
 
 TRANSCRIPT:
 ${transcript}
@@ -265,6 +274,8 @@ Analyze the meeting content and create a system architecture diagram that repres
 4. **External services, APIs, or dependencies** referenced
 5. **Infrastructure or deployment architecture** if discussed
 6. **Technology stack components** (databases, frameworks, etc.)
+
+${previousDiagram ? `IMPORTANT: Build upon the previous diagram by adding new elements and connections discussed in this transcript. Preserve the existing structure and only add what's new or modified.` : ''}
 
 If the meeting is non-technical, create a simple process flow of the main workflow or decision process discussed.
 

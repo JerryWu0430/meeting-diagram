@@ -47,6 +47,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
   // State for diagram rendering
   const [diagramSvg, setDiagramSvg] = useState<string>('');
   const [diagramError, setDiagramError] = useState<string>('');
+  const [diagramVersion, setDiagramVersion] = useState<number>(0);
   
   // State for meeting type selection
   const [meetingType, setMeetingType] = useState<string>('general');
@@ -86,7 +87,8 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
       
       if (response.ok) {
         const data = await response.json();
-        setSummary(data.summary || 'Summary generated successfully');
+        const newSummary = data.summary || 'Summary generated successfully';
+        setSummary(newSummary);
       } else {
         console.error('Failed to generate summary');
       }
@@ -105,15 +107,24 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     setDiagramError(''); // Clear any previous errors
     
     try {
+      const requestBody = { 
+        transcript: text,
+        summary: summary || undefined, // Include current summary if available
+        previousDiagram: diagram || undefined // Include previous diagram as context
+      };
+      
+      console.log('Generating diagram with context:', {
+        hasPreviousDiagram: !!diagram,
+        transcriptLength: text.length,
+        hasSummary: !!summary
+      });
+      
       const response = await fetch('/api/generate-diagram', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          transcript: text,
-          summary: summary || undefined // Include current summary if available
-        }),
+        body: JSON.stringify(requestBody),
       });
       
       if (response.ok) {
@@ -137,6 +148,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
             setDiagramSvg(svg);
             setDiagram(diagramCode);
             setDiagramError('');
+            setDiagramVersion(prev => prev + 1);
                     } catch (mermaidError) {
             console.error('Mermaid rendering error:', mermaidError);
             console.error('Invalid diagram code:', diagramCode);
@@ -156,6 +168,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
               setDiagramSvg(svg);
               setDiagram(cleanedCode);
               setDiagramError('');
+              setDiagramVersion(prev => prev + 1);
             } catch (fallbackError) {
               console.error('Fallback rendering also failed:', fallbackError);
               
@@ -177,37 +190,28 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     }
   }, [summary]);
 
-  // Debounced summary and diagram generation
+  // Debounced summary generation
   useEffect(() => {
     if (summaryTimeoutRef.current) {
       clearTimeout(summaryTimeoutRef.current);
-    }
-    if (diagramTimeoutRef.current) {
-      clearTimeout(diagramTimeoutRef.current);
     }
     
     if (transcript.length > 0 || transcriptSegments.length > 0) {
       const completeTranscript = getCompleteTranscript();
       
       summaryTimeoutRef.current = setTimeout(() => {
+        // Generate both summary and diagram simultaneously
         generateSummary(completeTranscript);
-      }, 2000); // Wait 2 seconds after transcript stops updating
-      
-      // Generate diagram with a longer delay to allow more content
-      diagramTimeoutRef.current = setTimeout(() => {
         generateDiagram(completeTranscript);
-      }, 5000); // Wait 5 seconds for diagram generation
+      }, 3000); // Wait 3 seconds after transcript stops updating - both generate together
     }
     
     return () => {
       if (summaryTimeoutRef.current) {
         clearTimeout(summaryTimeoutRef.current);
       }
-      if (diagramTimeoutRef.current) {
-        clearTimeout(diagramTimeoutRef.current);
-      }
     };
-  }, [transcript, transcriptSegments, generateDiagram, generateSummary, getCompleteTranscript]);
+  }, [transcript, transcriptSegments, generateSummary, getCompleteTranscript]);
 
   // Function to add new transcript segment
   const addTranscriptSegment = (text: string) => {
@@ -230,6 +234,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     setDiagram('');
     setDiagramSvg('');
     setDiagramError('');
+    setDiagramVersion(0);
   };
 
   // Function to handle connection errors gracefully
@@ -555,7 +560,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
               style={{ color: '#111827' }}
             >
               {availableMeetingTypes.map((type) => (
-                <option key={type.id} value={type.id} title={type.description} className="text-gray-900 bg-white">
+                <option key={type.id} value={type.id} title={type.description}>
                   {type.name}
                 </option>
               ))}
@@ -609,6 +614,16 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                       {isGeneratingDiagram && (
                         <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full animate-pulse">
                           Generating...
+                        </span>
+                      )}
+                      {diagram && !isGeneratingDiagram && (
+                        <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                          Building upon previous diagram (v{diagramVersion})
+                        </span>
+                      )}
+                      {transcript.length > 0 && !diagram && !isGeneratingDiagram && !isGeneratingSummary && (
+                        <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                          ⏰ Both summary & diagram in ~3s
                         </span>
                       )}
                     </h3>
@@ -684,11 +699,34 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                     
                     {/* Session Summary */}
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <h3 className="text-sm font-medium text-gray-700 mb-2">
+                      <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
                         🎯 Live Summary
+                        {transcript.length > 0 && !summary && !isGeneratingSummary && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
+                              ⏰ Both summary & diagram in ~3s
+                            </span>
+                            <button
+                              onClick={() => {
+                                const completeTranscript = getCompleteTranscript();
+                                generateSummary(completeTranscript);
+                                generateDiagram(completeTranscript);
+                              }}
+                              disabled={getCompleteTranscript().length < 50}
+                              className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded-full transition-colors disabled:opacity-50"
+                            >
+                              Generate Now
+                            </button>
+                          </div>
+                        )}
                       </h3>
                       <div className="bg-white p-3 rounded border max-h-64 overflow-y-auto">
-                        {summary ? (
+                        {isGeneratingSummary ? (
+                          <div className="text-center py-8">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                            <p className="text-gray-500 text-xs">Generating summary...</p>
+                          </div>
+                        ) : summary ? (
                           <div className="text-gray-800 text-sm leading-relaxed prose prose-sm max-w-none">
                             <ReactMarkdown>{summary}</ReactMarkdown>
                           </div>
