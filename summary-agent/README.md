@@ -5,7 +5,8 @@ A voice-powered AI assistant built with OpenAI Agents SDK and Next.js that helps
 ## Features
 
 - 🎤 **Voice Interaction**: Speak naturally to interact with your AI assistant
-- 📝 **Smart Summaries**: Get instant AI-powered summaries of meeting content
+- 📝 **Real-time Transcription**: See your full speech converted to text in real-time
+- 🎯 **Live Summaries**: Get AI-generated summaries that update automatically as you speak
 - ✅ **Action Items**: Automatically extract and organize follow-up tasks
 - 🧠 **AI-Powered**: Built on OpenAI's latest GPT models for intelligent assistance
 
@@ -43,7 +44,9 @@ npm run dev
 1. **Start Voice Session**: Click "Start Voice Session" to begin
 2. **Grant Microphone Access**: Allow microphone access when prompted
 3. **Speak Naturally**: Share your meeting content, questions, or requests
-4. **Get AI Assistance**: Receive summaries, insights, and organized information
+4. **View Live Transcription**: See your complete speech appear in real-time on the left panel
+5. **Get Live Summaries**: Watch AI-generated summaries update automatically on the right panel
+6. **AI Assistance**: Receive intelligent insights and organized information as you speak
 
 ## How It Works
 
@@ -51,8 +54,9 @@ The application uses OpenAI's Realtime API to provide real-time voice interactio
 
 1. **Connection**: Establishes a secure WebRTC connection to OpenAI
 2. **Voice Processing**: Converts speech to text in real-time
-3. **AI Analysis**: Processes content using GPT models
-4. **Response**: Provides intelligent summaries and insights
+3. **Live Transcription**: Displays your complete speech as you speak
+4. **AI Summarization**: Automatically generates summaries every 2 seconds after you stop speaking
+5. **Smart Analysis**: Provides intelligent insights and organized information
 
 ## Technical Details
 
@@ -65,7 +69,7 @@ The application uses OpenAI's Realtime API to provide real-time voice interactio
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `OPENAI_API_KEY` | Your OpenAI API key with Realtime API access | Yes |
+| `OPENAI_API_KEY` | Your OpenAI API key with Realtime API access and GPT-4o-mini access | Yes |
 
 ## Troubleshooting
 
