@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { RealtimeAgent, RealtimeSession } from '@openai/agents-realtime';
+import ReactMarkdown from 'react-markdown';
 
 interface VoiceAgentProps {
   className?: string;
@@ -26,6 +27,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<string>('');
+  const [transcriptSegments, setTranscriptSegments] = useState<Array<{id: string, text: string, timestamp: Date}>>([]);
   const [summary, setSummary] = useState<string>('');
   const [isListening, setIsListening] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
@@ -33,6 +35,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
   const sessionRef = useRef<RealtimeSession | null>(null);
   const agentRef = useRef<RealtimeAgent | null>(null);
   const summaryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const segmentIdRef = useRef<number>(0);
 
   // Function to generate summary from transcript
   const generateSummary = async (text: string) => {
@@ -79,6 +82,25 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
       }
     };
   }, [transcript]);
+
+  // Function to add new transcript segment
+  const addTranscriptSegment = (text: string) => {
+    if (text.trim()) {
+      const newSegment = {
+        id: `segment-${segmentIdRef.current++}`,
+        text: text.trim(),
+        timestamp: new Date()
+      };
+      setTranscriptSegments(prev => [...prev, newSegment]);
+    }
+  };
+
+  // Function to clear all transcript segments
+  const clearTranscripts = () => {
+    setTranscriptSegments([]);
+    setTranscript('');
+    setSummary('');
+  };
 
   useEffect(() => {
     // Initialize the agent
@@ -159,7 +181,10 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
         }
         // Handle completed transcription
         if (event.type === 'conversation.item.input_audio_transcription.completed') {
-          setTranscript(event.transcript || '');
+          const completedText = event.transcript || '';
+          setTranscript(completedText);
+          // Add the completed transcript as a new segment
+          addTranscriptSegment(completedText);
         }
         // Handle errors
         if (event.type === 'error') {
@@ -211,7 +236,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     setIsConnected(false);
     setIsListening(false);
     setTranscript('');
-    setSummary('');
+    // Don't clear transcriptSegments and summary - keep them for the session
   };
 
   return (
@@ -222,43 +247,144 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
       
       <div className="space-y-4">
         {!isConnected ? (
-          <button
-            onClick={connectToSession}
-            disabled={isConnecting}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-          >
-            {isConnecting ? 'Connecting...' : 'Start Voice Session'}
-          </button>
+          <div className="space-y-4">
+            <button
+              onClick={connectToSession}
+              disabled={isConnecting}
+              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            >
+              {isConnecting ? 'Connecting...' : 'Start Voice Session'}
+            </button>
+            
+            {/* Show session data even when disconnected */}
+            {(transcriptSegments.length > 0 || summary) && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-700">Session Data</h3>
+                  <button
+                    onClick={clearTranscripts}
+                    className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                  >
+                    Clear Session
+                  </button>
+                </div>
+                
+                {/* Two-column layout for transcript list and summary */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Transcript Segments List */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
+                      📝 Transcript Segments
+                      {transcriptSegments.length > 0 && (
+                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                          {transcriptSegments.length} segments
+                        </span>
+                      )}
+                    </h3>
+                    <div className="bg-white rounded border max-h-96 overflow-y-auto">
+                      {transcriptSegments.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          No transcript segments yet...
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {transcriptSegments.map((segment, index) => (
+                            <div key={segment.id} className="p-3 hover:bg-gray-50">
+                              <div className="flex items-start justify-between mb-2">
+                                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                  Segment {index + 1}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  {segment.timestamp.toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <p className="text-gray-800 text-sm leading-relaxed">
+                                {segment.text}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Session Summary */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">
+                      🎯 Session Summary
+                    </h3>
+                    <div className="bg-white p-3 rounded border max-h-96 overflow-y-auto">
+                      {summary ? (
+                        <div className="text-gray-800 text-sm leading-relaxed prose prose-sm max-w-none">
+                          <ReactMarkdown>{summary}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-gray-500 text-sm">No summary generated yet...</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-gray-600">
                 Status: {isListening ? 'Listening' : 'Processing'}
               </span>
-              <button
-                onClick={disconnect}
-                className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-              >
-                Disconnect
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={clearTranscripts}
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  Clear All
+                </button>
+                <button
+                  onClick={disconnect}
+                  className="bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  Disconnect
+                </button>
+              </div>
             </div>
             
-            {/* Two-column layout for transcript and summary */}
+            {/* Two-column layout for transcript list and summary */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Full Transcript */}
+              {/* Transcript Segments List */}
               <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                  📝 Full Transcript
-                  {transcript && (
-                    <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                      {transcript.split(' ').length} words
+                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
+                  📝 Transcript Segments
+                  {transcriptSegments.length > 0 && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      {transcriptSegments.length} segments
                     </span>
                   )}
                 </h3>
-                <div className="bg-white p-3 rounded border max-h-96 overflow-y-auto">
-                  <p className="text-gray-800 text-sm leading-relaxed">
-                    {transcript || 'Start speaking to see the transcript...'}
-                  </p>
+                <div className="bg-white rounded border max-h-96 overflow-y-auto">
+                  {transcriptSegments.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 text-sm">
+                      Start speaking to see transcript segments...
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {transcriptSegments.map((segment, index) => (
+                        <div key={segment.id} className="p-3 hover:bg-gray-50">
+                          <div className="flex items-start justify-between mb-2">
+                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                              Segment {index + 1}
+                            </span>
+                            <span className="text-xs text-gray-400">
+                              {segment.timestamp.toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className="text-gray-800 text-sm leading-relaxed">
+                            {segment.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -274,11 +400,10 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                 </h3>
                 <div className="bg-white p-3 rounded border max-h-96 overflow-y-auto">
                   {summary ? (
-                    <div className="text-gray-800 text-sm leading-relaxed">
-                      <p className="mb-2 font-medium">Key Points:</p>
-                      <p>{summary}</p>
+                    <div className="text-gray-800 text-sm leading-relaxed prose prose-sm max-w-none">
+                      <ReactMarkdown>{summary}</ReactMarkdown>
                     </div>
-                  ) : transcript.length > 0 ? (
+                  ) : transcriptSegments.length > 0 ? (
                     <div className="text-gray-500 text-sm">
                       {isGeneratingSummary ? 'Generating summary...' : 'Summary will appear here shortly...'}
                     </div>
@@ -292,9 +417,11 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
             <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
               <p className="font-medium mb-1">💡 How it works:</p>
               <p>🎤 Speak naturally to interact with your meeting assistant</p>
-              <p>📝 Your full speech appears in real-time on the left</p>
+              <p>📝 Each speech segment appears as a separate item in the list on the left</p>
               <p>🎯 AI-generated summaries update automatically on the right</p>
               <p>⏱️ Summaries refresh every 2 seconds after you stop speaking</p>
+              <p>🗑️ Use "Clear All" to reset the transcript history</p>
+              <p>💾 Your session data is preserved even after disconnecting</p>
             </div>
           </div>
         )}
