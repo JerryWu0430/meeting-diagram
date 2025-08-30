@@ -1,0 +1,92 @@
+.meeting-app-root {
+  display: flex;
+  height: 100vh;
+  background: #181818;
+  color: #fff;
+  font-family: 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.diagram-area {
+  flex: 2.5;
+  min-width: 0;
+  background: #181818;
+  border-right: 2px solid #222;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.side-panel {
+  flex: 1.2;
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  padding: 24px 18px 18px 18px;
+  box-sizing: border-box;
+  height: 100vh;
+  min-width: 320px;
+}
+
+.summary-section {
+  background: #222;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 18px;
+  border-left: 5px solid #ff8800;
+}
+.summary-section h2 {
+  color: #ff8800;
+  margin: 0 0 8px 0;
+}
+.summary-content {
+  font-size: 1.1rem;
+  color: #fff;
+}
+
+.transcript-section {
+  background: #232323;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 18px;
+  flex: 1;
+  overflow-y: auto;
+  border-left: 4px solid #ffb366;
+}
+.transcript-section h3 {
+  color: #ffb366;
+  margin: 0 0 6px 0;
+}
+.transcript-content {
+  font-size: 0.98rem;
+  color: #eee;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.mic-btn {
+  background: #181818;
+  color: #ff8800;
+  border: 2px solid #ff8800;
+  border-radius: 50px;
+  padding: 12px 28px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  outline: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.mic-btn.listening {
+  background: #ff8800;
+  color: #181818;
+  border: 2px solid #ffb366;
+}
+
+/* Hide default CRA styles */
+.App, .App-header, .App-logo, .App-link {
+  display: none !important;
+}
