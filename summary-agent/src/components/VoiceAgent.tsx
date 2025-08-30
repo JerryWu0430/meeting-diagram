@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { RealtimeAgent, RealtimeSession } from '@openai/agents-realtime';
 import ReactMarkdown from 'react-markdown';
+import mermaid from 'mermaid';
 
 interface VoiceAgentProps {
   className?: string;
@@ -29,16 +30,23 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
   const [transcript, setTranscript] = useState<string>('');
   const [transcriptSegments, setTranscriptSegments] = useState<Array<{id: string, text: string, timestamp: Date}>>([]);
   const [summary, setSummary] = useState<string>('');
+  const [diagram, setDiagram] = useState<string>('');
   const [isListening, setIsListening] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [isGeneratingDiagram, setIsGeneratingDiagram] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'reconnecting'>('disconnected');
   
   const sessionRef = useRef<RealtimeSession | null>(null);
   const agentRef = useRef<RealtimeAgent | null>(null);
   const summaryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const diagramTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const segmentIdRef = useRef<number>(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
+
+  // State for diagram rendering
+  const [diagramSvg, setDiagramSvg] = useState<string>('');
+  const [diagramError, setDiagramError] = useState<string>('');
 
   // Function to generate summary from transcript
   const generateSummary = async (text: string) => {
@@ -67,24 +75,89 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     }
   };
 
-  // Debounced summary generation
+  // Function to generate diagram from transcript
+  const generateDiagram = useCallback(async (text: string) => {
+    if (!text.trim() || text.length < 100) return; // Only generate diagram if there's substantial content
+    
+    setIsGeneratingDiagram(true);
+    setDiagramError(''); // Clear any previous errors
+    
+    try {
+      const response = await fetch('/api/generate-diagram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ transcript: text }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const diagramCode = data.diagram;
+        
+        if (diagramCode) {
+          // Generate unique ID for this diagram
+          const diagramId = `diagram-${Date.now()}`;
+          
+          try {
+            // Render the Mermaid diagram
+            const { svg } = await mermaid.render(diagramId, diagramCode);
+            
+            // Use React state instead of direct DOM manipulation
+            setDiagramSvg(svg);
+            setDiagram(diagramCode);
+            setDiagramError('');
+          } catch (mermaidError) {
+            console.error('Mermaid rendering error:', mermaidError);
+            console.error('Invalid diagram code:', diagramCode);
+            
+
+            // Set error state instead of manipulating DOM
+            setDiagramSvg('');
+            setDiagramError(`Failed to render diagram. The generated Mermaid syntax may be invalid.\n\nRaw diagram code:\n${diagramCode}`);
+          }
+        }
+      } else {
+        console.error('Failed to generate diagram');
+        setDiagramError('Failed to generate diagram from the API.');
+      }
+    } catch (err) {
+      console.error('Error generating diagram:', err);
+      setDiagramError('Error occurred while generating diagram.');
+    } finally {
+      setIsGeneratingDiagram(false);
+    }
+  }, []);
+
+  // Debounced summary and diagram generation
   useEffect(() => {
     if (summaryTimeoutRef.current) {
       clearTimeout(summaryTimeoutRef.current);
+    }
+    if (diagramTimeoutRef.current) {
+      clearTimeout(diagramTimeoutRef.current);
     }
     
     if (transcript.length > 0) {
       summaryTimeoutRef.current = setTimeout(() => {
         generateSummary(transcript);
       }, 2000); // Wait 2 seconds after transcript stops updating
+      
+      // Generate diagram with a longer delay to allow more content
+      diagramTimeoutRef.current = setTimeout(() => {
+        generateDiagram(transcript);
+      }, 5000); // Wait 5 seconds for diagram generation
     }
     
     return () => {
       if (summaryTimeoutRef.current) {
         clearTimeout(summaryTimeoutRef.current);
       }
+      if (diagramTimeoutRef.current) {
+        clearTimeout(diagramTimeoutRef.current);
+      }
     };
-  }, [transcript]);
+  }, [transcript, generateDiagram]);
 
   // Function to add new transcript segment
   const addTranscriptSegment = (text: string) => {
@@ -104,16 +177,20 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     setTranscriptSegments([]);
     setTranscript('');
     setSummary('');
+    setDiagram('');
+    setDiagramSvg('');
+    setDiagramError('');
   };
 
   // Function to handle connection errors gracefully
-  const handleConnectionError = (error: any, isReconnect: boolean = false) => {
+  const handleConnectionError = (error: unknown, isReconnect: boolean = false) => {
     console.error('Connection error:', error);
     
     // Check if it's a timeout/abort error
-    if (error?.error?.message?.includes('User-Initiated Abort') || 
-        error?.error?.message?.includes('timeout') ||
-        error?.type === 'error') {
+    const errorObj = error as { error?: { message?: string }; type?: string; message?: string };
+    if (errorObj?.error?.message?.includes('User-Initiated Abort') || 
+        errorObj?.error?.message?.includes('timeout') ||
+        errorObj?.type === 'error') {
       
       if (isReconnect) {
         setError('Reconnection failed. Please try starting a new session.');
@@ -147,7 +224,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
         }, 2000);
       }
     } else {
-      setError(`Connection error: ${error?.error?.message || error?.message || 'Unknown error'}`);
+      setError(`Connection error: ${errorObj?.error?.message || errorObj?.message || 'Unknown error'}`);
       setConnectionStatus('disconnected');
     }
   };
@@ -165,6 +242,20 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
   };
 
   useEffect(() => {
+    // Initialize Mermaid
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 14,
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis'
+      }
+    });
+
     // Initialize the agent
     agentRef.current = new RealtimeAgent({
       name: 'Meeting Summary Assistant',
@@ -188,6 +279,9 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
       }
       if (summaryTimeoutRef.current) {
         clearTimeout(summaryTimeoutRef.current);
+      }
+      if (diagramTimeoutRef.current) {
+        clearTimeout(diagramTimeoutRef.current);
       }
     };
   }, []);
@@ -347,12 +441,15 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     if (summaryTimeoutRef.current) {
       clearTimeout(summaryTimeoutRef.current);
     }
+    if (diagramTimeoutRef.current) {
+      clearTimeout(diagramTimeoutRef.current);
+    }
     setIsConnected(false);
     setIsListening(false);
     setTranscript('');
     setConnectionStatus('disconnected');
     setError(null);
-    // Don't clear transcriptSegments and summary - keep them for the session
+    // Don't clear transcriptSegments, summary, and diagram - keep them for the session
   };
 
   // Cleanup on unmount
@@ -363,6 +460,9 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
       }
       if (summaryTimeoutRef.current) {
         clearTimeout(summaryTimeoutRef.current);
+      }
+      if (diagramTimeoutRef.current) {
+        clearTimeout(diagramTimeoutRef.current);
       }
     };
   }, []);
@@ -397,7 +497,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
             </div>
             
             {/* Show session data even when disconnected */}
-            {(transcriptSegments.length > 0 || summary) && (
+            {(transcriptSegments.length > 0 || summary || diagram || diagramSvg) && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-700">Session Data</h3>
@@ -409,8 +509,8 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                   </button>
                 </div>
                 
-                {/* Two-column layout for transcript list and summary */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Three-column layout for transcript, summary, and diagram */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                   {/* Transcript Segments List */}
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
@@ -463,6 +563,44 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                       )}
                     </div>
                   </div>
+                  
+                  {/* Meeting Diagram */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      📊 Meeting Flowchart
+                      {isGeneratingDiagram && (
+                        <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full animate-pulse">
+                          Generating...
+                        </span>
+                      )}
+                    </h3>
+                    <div className="bg-white p-3 rounded border max-h-96 overflow-auto">
+                      <div className="w-full">
+                        {diagramError ? (
+                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-red-800 text-sm mb-2">Failed to render diagram</p>
+                            <details className="mt-2">
+                              <summary className="text-xs text-red-600 cursor-pointer">Show details</summary>
+                              <pre className="mt-2 text-xs bg-red-100 p-2 rounded overflow-auto whitespace-pre-wrap">
+                                {diagramError}
+                              </pre>
+                            </details>
+                          </div>
+                        ) : diagramSvg ? (
+                          <div dangerouslySetInnerHTML={{ __html: diagramSvg }} />
+                        ) : isGeneratingDiagram ? (
+                          <div className="text-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                            <p className="text-gray-500 text-sm">Generating flowchart...</p>
+                          </div>
+                        ) : (
+                          <p className="text-gray-500 text-sm text-center py-8">
+                            Diagram will appear here as you speak...
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -474,6 +612,13 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                 Status: {isListening ? 'Listening' : 'Processing'}
               </span>
               <div className="flex gap-2">
+                <button
+                  onClick={() => generateDiagram(transcript)}
+                  disabled={!transcript || transcript.length < 100 || isGeneratingDiagram}
+                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+                >
+                  Generate Diagram
+                </button>
                 <button
                   onClick={clearTranscripts}
                   className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
@@ -489,8 +634,8 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
               </div>
             </div>
             
-            {/* Two-column layout for transcript list and summary */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Three-column layout for transcript, summary, and diagram */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Transcript Segments List */}
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
@@ -552,15 +697,54 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                   )}
                 </div>
               </div>
+              
+              {/* Live Meeting Diagram */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                  📊 Live Flowchart
+                  {isGeneratingDiagram && (
+                    <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full animate-pulse">
+                      Generating...
+                    </span>
+                  )}
+                </h3>
+                <div className="bg-white p-3 rounded border max-h-96 overflow-auto">
+                  <div className="w-full">
+                    {diagramError ? (
+                      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-red-800 text-sm mb-2">Failed to render diagram</p>
+                        <details className="mt-2">
+                          <summary className="text-xs text-red-600 cursor-pointer">Show details</summary>
+                          <pre className="mt-2 text-xs bg-red-100 p-2 rounded overflow-auto whitespace-pre-wrap">
+                            {diagramError}
+                          </pre>
+                        </details>
+                      </div>
+                    ) : diagramSvg ? (
+                      <div dangerouslySetInnerHTML={{ __html: diagramSvg }} />
+                    ) : isGeneratingDiagram ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
+                        <p className="text-gray-500 text-sm">Generating live flowchart...</p>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm text-center py-8">
+                        Flowchart will appear here as you speak...
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg">
               <p className="font-medium mb-1">💡 How it works:</p>
               <p>🎤 Speak naturally to interact with your meeting assistant</p>
-              <p>📝 Each speech segment appears as a separate item in the list on the left</p>
-              <p>🎯 AI-generated summaries update automatically on the right</p>
-              <p>⏱️ Summaries refresh every 2 seconds after you stop speaking</p>
-              <p>🗑️ Use "Clear All" to reset the transcript history</p>
+              <p>📝 Each speech segment appears as a separate item in the transcript list</p>
+              <p>🎯 AI-generated summaries update automatically in the middle column</p>
+              <p>📊 Live flowcharts are generated showing meeting flow and decisions</p>
+              <p>⏱️ Summaries refresh every 2 seconds, diagrams every 5 seconds after you stop speaking</p>
+              <p>🗑️ Use &quot;Clear All&quot; to reset all session data</p>
               <p>💾 Your session data is preserved even after disconnecting</p>
               <p>🔄 Automatic reconnection handles timeout disconnections</p>
             </div>
