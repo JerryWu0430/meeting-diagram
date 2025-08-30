@@ -219,9 +219,8 @@ CONTEXT-AWARE GENERATION:
 - If a previous diagram is provided, build upon it by deleting redudant components, connections, or details
 - Only add new elements if they are discussed in the current transcript
 - Preserve existing structure and relationships from the previous diagram.
-- Delete repetitive components and elements that might be conflicting with the new transcript
+- Delete all repetitive components and elements that might be conflicting with the new transcript
 - Maintain consistency with the previous diagram's style and naming conventions
-- If the previous diagram is comprehensive, focus on incremental updates rather than complete rewrites
 - Dont ever exceed more than 10 nodes in the diagram
 
 MERMAID SYNTAX RULES:
