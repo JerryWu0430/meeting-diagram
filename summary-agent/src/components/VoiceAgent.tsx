@@ -268,6 +268,17 @@ function APIDocumentationLinks({ summary }: { summary: string }) {
     { pattern: /\b(Docker API)\b/gi, name: 'Docker API', url: 'https://docs.docker.com/engine/api/', category: 'Infrastructure' },
     { pattern: /\b(Kubernetes API)\b/gi, name: 'Kubernetes API', url: 'https://kubernetes.io/docs/reference/', category: 'Infrastructure' },
     
+    // Frontend Frameworks & Libraries
+    { pattern: /\b(React|React\.js|ReactJS)\b/gi, name: 'React', url: 'https://react.dev/', category: 'Frontend' },
+    { pattern: /\b(Vue|Vue\.js|VueJS)\b/gi, name: 'Vue.js', url: 'https://vuejs.org/', category: 'Frontend' },
+    { pattern: /\b(Angular|AngularJS)\b/gi, name: 'Angular', url: 'https://angular.io/', category: 'Frontend' },
+    { pattern: /\b(Next\.js|NextJS)\b/gi, name: 'Next.js', url: 'https://nextjs.org/', category: 'Frontend' },
+    { pattern: /\b(Nuxt\.js|NuxtJS)\b/gi, name: 'Nuxt.js', url: 'https://nuxt.com/', category: 'Frontend' },
+    { pattern: /\b(Svelte|SvelteKit)\b/gi, name: 'Svelte', url: 'https://svelte.dev/', category: 'Frontend' },
+    
+    // Research & Data Collection APIs
+    { pattern: /\b(Prolific)\b/gi, name: 'Prolific API', url: 'https://docs.prolific.co/', category: 'Research' },
+    
     // Database & Storage APIs
     { pattern: /\b(PostgreSQL|Postgres)\b/gi, name: 'PostgreSQL API', url: 'https://www.postgresql.org/docs/', category: 'Database' },
     { pattern: /\b(MongoDB)\b/gi, name: 'MongoDB API', url: 'https://docs.mongodb.com/', category: 'Database' },
@@ -295,6 +306,21 @@ function APIDocumentationLinks({ summary }: { summary: string }) {
     { pattern: /\b(Algolia)\b/gi, name: 'Algolia API', url: 'https://www.algolia.com/doc/', category: 'Search' },
     { pattern: /\b(Elasticsearch)\b/gi, name: 'Elasticsearch API', url: 'https://www.elastic.co/guide/index.html', category: 'Search' },
     { pattern: /\b(Contentful)\b/gi, name: 'Contentful API', url: 'https://www.contentful.com/developers/docs/', category: 'Search' },
+    { pattern: /\b(Sanity)\b/gi, name: 'Sanity API', url: 'https://www.sanity.io/docs', category: 'Search' },
+    
+    // Backend & Server APIs
+    { pattern: /\b(Node\.js|NodeJS|Node)\b/gi, name: 'Node.js', url: 'https://nodejs.org/en/docs/', category: 'Backend' },
+    { pattern: /\b(Express\.js|Express)\b/gi, name: 'Express.js', url: 'https://expressjs.com/', category: 'Backend' },
+    { pattern: /\b(FastAPI|Fast API)\b/gi, name: 'FastAPI', url: 'https://fastapi.tiangolo.com/', category: 'Backend' },
+    { pattern: /\b(Django)\b/gi, name: 'Django', url: 'https://docs.djangoproject.com/', category: 'Backend' },
+    { pattern: /\b(Flask)\b/gi, name: 'Flask', url: 'https://flask.palletsprojects.com/', category: 'Backend' },
+    { pattern: /\b(Laravel)\b/gi, name: 'Laravel', url: 'https://laravel.com/docs/', category: 'Backend' },
+    { pattern: /\b(Ruby on Rails|Rails)\b/gi, name: 'Ruby on Rails', url: 'https://guides.rubyonrails.org/', category: 'Backend' },
+    
+    // Authentication & Security APIs
+    { pattern: /\b(Auth0)\b/gi, name: 'Auth0 API', url: 'https://auth0.com/docs', category: 'Authentication' },
+    { pattern: /\b(Okta)\b/gi, name: 'Okta API', url: 'https://developer.okta.com/', category: 'Authentication' },
+    { pattern: /\b(Clerk)\b/gi, name: 'Clerk API', url: 'https://clerk.com/docs', category: 'Authentication' },
   ];
 
   // Extract API technologies mentioned in the summary
@@ -375,6 +401,17 @@ function extractAPILinks(summary: string): Array<{name: string, url: string, cat
     { pattern: /\b(Netlify API)\b/gi, name: 'Netlify API', url: 'https://docs.netlify.com/', category: 'Infrastructure' },
     { pattern: /\b(Docker API)\b/gi, name: 'Docker API', url: 'https://docs.docker.com/engine/api/', category: 'Infrastructure' },
     { pattern: /\b(Kubernetes API)\b/gi, name: 'Kubernetes API', url: 'https://kubernetes.io/docs/reference/', category: 'Infrastructure' },
+    
+    // Frontend Frameworks & Libraries
+    { pattern: /\b(React|React\.js|ReactJS)\b/gi, name: 'React', url: 'https://react.dev/', category: 'Frontend' },
+    { pattern: /\b(Vue|Vue\.js|VueJS)\b/gi, name: 'Vue.js', url: 'https://vuejs.org/', category: 'Frontend' },
+    { pattern: /\b(Angular|AngularJS)\b/gi, name: 'Angular', url: 'https://angular.io/', category: 'Frontend' },
+    { pattern: /\b(Next\.js|NextJS)\b/gi, name: 'Next.js', url: 'https://nextjs.org/', category: 'Frontend' },
+    { pattern: /\b(Nuxt\.js|NuxtJS)\b/gi, name: 'Nuxt.js', url: 'https://nuxt.com/', category: 'Frontend' },
+    { pattern: /\b(Svelte|SvelteKit)\b/gi, name: 'Svelte', url: 'https://svelte.dev/', category: 'Frontend' },
+    
+    // Research & Data Collection APIs
+    { pattern: /\b(Prolific)\b/gi, name: 'Prolific API', url: 'https://docs.prolific.co/', category: 'Research' },
     { pattern: /\b(PostgreSQL|Postgres)\b/gi, name: 'PostgreSQL API', url: 'https://www.postgresql.org/docs/', category: 'Database' },
     { pattern: /\b(MongoDB)\b/gi, name: 'MongoDB API', url: 'https://docs.mongodb.com/', category: 'Database' },
     { pattern: /\b(Redis)\b/gi, name: 'Redis API', url: 'https://redis.io/documentation', category: 'Database' },
@@ -393,6 +430,21 @@ function extractAPILinks(summary: string): Array<{name: string, url: string, cat
     { pattern: /\b(Algolia)\b/gi, name: 'Algolia API', url: 'https://www.algolia.com/doc/', category: 'Search' },
     { pattern: /\b(Elasticsearch)\b/gi, name: 'Elasticsearch API', url: 'https://www.elastic.co/guide/index.html', category: 'Search' },
     { pattern: /\b(Contentful)\b/gi, name: 'Contentful API', url: 'https://www.contentful.com/developers/docs/', category: 'Search' },
+    { pattern: /\b(Sanity)\b/gi, name: 'Sanity API', url: 'https://www.sanity.io/docs', category: 'Search' },
+    
+    // Backend & Server APIs
+    { pattern: /\b(Node\.js|NodeJS|Node)\b/gi, name: 'Node.js', url: 'https://nodejs.org/en/docs/', category: 'Backend' },
+    { pattern: /\b(Express\.js|Express)\b/gi, name: 'Express.js', url: 'https://expressjs.com/', category: 'Backend' },
+    { pattern: /\b(FastAPI|Fast API)\b/gi, name: 'FastAPI', url: 'https://fastapi.tiangolo.com/', category: 'Backend' },
+    { pattern: /\b(Django)\b/gi, name: 'Django', url: 'https://docs.djangoproject.com/', category: 'Backend' },
+    { pattern: /\b(Flask)\b/gi, name: 'Flask', url: 'https://flask.palletsprojects.com/', category: 'Backend' },
+    { pattern: /\b(Laravel)\b/gi, name: 'Laravel', url: 'https://laravel.com/docs/', category: 'Backend' },
+    { pattern: /\b(Ruby on Rails|Rails)\b/gi, name: 'Ruby on Rails', url: 'https://guides.rubyonrails.org/', category: 'Backend' },
+    
+    // Authentication & Security APIs
+    { pattern: /\b(Auth0)\b/gi, name: 'Auth0 API', url: 'https://auth0.com/docs', category: 'Authentication' },
+    { pattern: /\b(Okta)\b/gi, name: 'Okta API', url: 'https://developer.okta.com/', category: 'Authentication' },
+    { pattern: /\b(Clerk)\b/gi, name: 'Clerk API', url: 'https://clerk.com/docs', category: 'Authentication' },
   ];
 
   const found = new Set<string>();
@@ -572,7 +624,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
 
   // Function to generate summary from transcript
   const generateSummary = useCallback(async (text: string) => {
-    if (!text.trim() || text.length < 50) return; // Only summarize if there's substantial content
+    if (!text.trim() || text.length < 50 || !isConnected) return; // Only summarize if there's substantial content and still connected
     
     setIsGeneratingSummary(true);
     try {
@@ -596,11 +648,11 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     } finally {
       setIsGeneratingSummary(false);
     }
-  }, [meetingType]);
+  }, [meetingType, isConnected]);
 
   // Function to generate diagram from transcript
   const generateDiagram = useCallback(async (text: string) => {
-    if (!text.trim() || text.length < 100) return; // Only generate diagram if there's substantial content
+    if (!text.trim() || text.length < 100 || !isConnected) return; // Only generate diagram if there's substantial content and still connected
     
     setIsGeneratingDiagram(true);
     setDiagramError(''); // Clear any previous errors
@@ -687,22 +739,23 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     } finally {
       setIsGeneratingDiagram(false);
     }
-  }, [summary, diagram]);
+  }, [summary, diagram, isConnected]);
 
-  // Debounced summary generation
+  // Debounced summary generation (diagram now manual)
   useEffect(() => {
     if (summaryTimeoutRef.current) {
       clearTimeout(summaryTimeoutRef.current);
     }
     
-    if (transcript.length > 0 || transcriptSegments.length > 0) {
+    if ((transcript.length > 0 || transcriptSegments.length > 0) && isConnected) {
       const completeTranscript = getCompleteTranscript();
       
       summaryTimeoutRef.current = setTimeout(() => {
-        // Generate both summary and diagram simultaneously
-        generateSummary(completeTranscript);
-        generateDiagram(completeTranscript);
-      }, 3000); // Wait 3 seconds after transcript stops updating - both generate together
+        // Only generate summary automatically, diagram is now manual
+        if (isConnected) {
+          generateSummary(completeTranscript);
+        }
+      }, 3000); // Wait 3 seconds after transcript stops updating - only summary auto-generates
     }
     
     return () => {
@@ -710,7 +763,21 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
         clearTimeout(summaryTimeoutRef.current);
       }
     };
-  }, [transcript, transcriptSegments, generateSummary, generateDiagram, getCompleteTranscript]);
+  }, [transcript, transcriptSegments, generateSummary, getCompleteTranscript, isConnected]);
+
+  // Clear timeouts when connection status changes to disconnected
+  useEffect(() => {
+    if (!isConnected) {
+      if (summaryTimeoutRef.current) {
+        clearTimeout(summaryTimeoutRef.current);
+        summaryTimeoutRef.current = null;
+      }
+      if (diagramTimeoutRef.current) {
+        clearTimeout(diagramTimeoutRef.current);
+        diagramTimeoutRef.current = null;
+      }
+    }
+  }, [isConnected]);
 
   // Function to add new transcript segment
   const addTranscriptSegment = (text: string) => {
@@ -850,9 +917,11 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
       }
       if (summaryTimeoutRef.current) {
         clearTimeout(summaryTimeoutRef.current);
+        summaryTimeoutRef.current = null;
       }
       if (diagramTimeoutRef.current) {
         clearTimeout(diagramTimeoutRef.current);
+        diagramTimeoutRef.current = null;
       }
     };
   }, []);
@@ -1011,9 +1080,11 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     }
     if (summaryTimeoutRef.current) {
       clearTimeout(summaryTimeoutRef.current);
+      summaryTimeoutRef.current = null;
     }
     if (diagramTimeoutRef.current) {
       clearTimeout(diagramTimeoutRef.current);
+      diagramTimeoutRef.current = null;
     }
     setIsConnected(false);
     setIsListening(false);
@@ -1028,12 +1099,15 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     return () => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (summaryTimeoutRef.current) {
         clearTimeout(summaryTimeoutRef.current);
+        summaryTimeoutRef.current = null;
       }
       if (diagramTimeoutRef.current) {
         clearTimeout(diagramTimeoutRef.current);
+        diagramTimeoutRef.current = null;
       }
     };
   }, []);
@@ -1203,13 +1277,12 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                         {transcript.length > 0 && !summary && !isGeneratingSummary && (
                           <div className="flex items-center gap-2">
                             <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
-                              ⏰ Both summary & diagram in ~3s
+                              ⏰ Summary in ~3s
                             </span>
                             <button
                               onClick={() => {
                                 const completeTranscript = getCompleteTranscript();
                                 generateSummary(completeTranscript);
-                                generateDiagram(completeTranscript);
                               }}
                               disabled={getCompleteTranscript().length < 50}
                               className="text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-1 rounded-full transition-colors disabled:opacity-50"
@@ -1298,20 +1371,6 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
               </span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    const completeTranscript = getCompleteTranscript();
-                    generateDiagram(completeTranscript);
-                  }}
-                  disabled={
-                    (!transcript && transcriptSegments.length === 0) || 
-                    getCompleteTranscript().length < 100 || 
-                    isGeneratingDiagram
-                  }
-                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
-                >
-                  Generate Diagram
-                </button>
-                <button
                   onClick={clearTranscripts}
                   className="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
                 >
@@ -1330,14 +1389,35 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Live Meeting Diagram - Takes up 2 columns (left side) */}
               <div className="lg:col-span-2 bg-gray-50 p-6 rounded-lg">
-                <h3 className="text-lg font-medium text-gray-700 mb-4 flex items-center">
-                                        🏗️ System Architecture Diagram
-                  {isGeneratingDiagram && (
-                    <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full animate-pulse">
-                      Generating...
-                    </span>
-                  )}
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-700 flex items-center">
+                    🏗️ System Architecture Diagram
+                    {isGeneratingDiagram && (
+                      <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full animate-pulse">
+                        Generating...
+                      </span>
+                    )}
+                    {diagram && !isGeneratingDiagram && (
+                      <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                        Version {diagramVersion}
+                      </span>
+                    )}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      const completeTranscript = getCompleteTranscript();
+                      generateDiagram(completeTranscript);
+                    }}
+                    disabled={
+                      (!transcript && transcriptSegments.length === 0) || 
+                      getCompleteTranscript().length < 100 || 
+                      isGeneratingDiagram
+                    }
+                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+                  >
+                    {isGeneratingDiagram ? 'Generating...' : 'Generate Diagram'}
+                  </button>
+                </div>
                 <div className="bg-white p-6 rounded border min-h-96 overflow-auto">
                   <div className="w-full h-full">
                     {diagramError ? (
@@ -1439,9 +1519,9 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
               <p className="font-medium mb-1">💡 How it works:</p>
               <p>🎤 Speak naturally to interact with your meeting assistant</p>
               <p>📝 Each speech segment appears as a separate item in the transcript list</p>
-              <p>🎯 AI-generated summaries update automatically in the middle column</p>
-              <p>🏗️ System architecture diagrams are generated from technical discussions</p>
-              <p>⏱️ Summaries refresh every 2 seconds, diagrams every 5 seconds after you stop speaking</p>
+              <p>🎯 AI-generated summaries update automatically after 3 seconds of silence</p>
+              <p>🏗️ Click &quot;Generate Diagram&quot; to create system architecture diagrams from technical discussions</p>
+              <p>🔄 Diagrams build upon previous versions for continuous evolution</p>
               <p>🗑️ Use &quot;Clear All&quot; to reset all session data</p>
               <p>💾 Your session data is preserved even after disconnecting</p>
               <p>🔄 Automatic reconnection handles timeout disconnections</p>

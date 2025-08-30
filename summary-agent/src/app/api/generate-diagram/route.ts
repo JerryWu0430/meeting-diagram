@@ -215,13 +215,14 @@ Analyze the meeting content and create a system architecture diagram that shows:
 5. **Technical Stack**: Technologies, frameworks, platforms mentioned
 6. **Infrastructure**: Deployment, hosting, storage solutions
 
-CONTEXT-AWARE GENERATION:
-- If a previous diagram is provided, build upon it by deleting redudant components, connections, or details
-- Only add new elements if they are discussed in the current transcript
-- Preserve existing structure and relationships from the previous diagram.
-- Delete all repetitive components and elements that might be conflicting with the new transcript
-- Maintain consistency with the previous diagram's style and naming conventions
-- Dont ever exceed more than 10 nodes in the diagram
+CONTEXT-AWARE GENERATION (CRITICAL RULES):
+- **STRICT NODE LIMIT**: Never exceed 8 nodes total in any diagram
+- **DELETION FIRST**: If a previous diagram exists, DELETE outdated/irrelevant nodes before adding new ones
+- **CONSOLIDATION**: Merge similar components into single nodes (e.g., combine multiple APIs into "API Layer")
+- **FOCUS ON NEW CONTENT**: Only add nodes for components explicitly discussed in the current transcript
+- **REMOVE CONFLICTS**: Delete any previous nodes that conflict with or are superseded by new information
+- **PRIORITIZE CORE COMPONENTS**: Keep only the most essential system components
+- **SIMPLIFY CONNECTIONS**: Reduce complex connection patterns to essential data flows
 
 MERMAID SYNTAX RULES:
 1. Return ONLY valid Mermaid syntax - no explanations, no markdown code blocks
@@ -236,7 +237,7 @@ MERMAID SYNTAX RULES:
 4. Node IDs: Single letters A, B, C, etc.
 5. Arrows: A --> B (with spaces)
 6. Labels: Clear, technical component names
-7. Maximum 20 nodes for complex systems
+7. **ABSOLUTE MAXIMUM: 8 nodes total** - no exceptions
 8. NO subgraphs, NO comments, NO special characters in labels
 
 VALID ARCHITECTURE EXAMPLE:
@@ -274,9 +275,27 @@ Analyze the meeting content and create a system architecture diagram that repres
 5. **Infrastructure or deployment architecture** if discussed
 6. **Technology stack components** (databases, frameworks, etc.)
 
-${previousDiagram ? `IMPORTANT: Build upon the previous diagram by adding new elements and connections discussed in this transcript. Preserve the existing structure and only add what's new or modified.` : ''}
+${previousDiagram ? `
+CRITICAL CONTEXT-AWARE REQUIREMENTS:
+1. **STRICT NODE LIMIT**: The final diagram must have EXACTLY 8 nodes or fewer - NO EXCEPTIONS
+2. **DELETE FIRST**: Remove outdated/irrelevant nodes from the previous diagram before adding new ones
+3. **CONSOLIDATE**: Merge similar components (e.g., "User API" + "Admin API" = "API Layer")
+4. **FOCUS**: Only include components explicitly mentioned in this transcript
+5. **SIMPLIFY**: Reduce complexity by combining related services into broader categories
+
+PREVIOUS DIAGRAM TO MODIFY:
+\`\`\`mermaid
+${previousDiagram}
+\`\`\`
+
+Your task: Modify the above diagram by REMOVING unnecessary nodes and ADDING only what's discussed in the current transcript. Final result must be ≤8 nodes.` : `
+REQUIREMENTS:
+- Create a simple, focused diagram with maximum 8 nodes
+- Include only the most essential components discussed in the transcript`}
 
 If the meeting is non-technical, create a simple process flow of the main workflow or decision process discussed.
+
+**FINAL CHECK**: Count your nodes before responding. If >8 nodes, consolidate or remove components until ≤8.
 
 Return ONLY the Mermaid syntax - no explanations or markdown blocks.`
         }
@@ -297,23 +316,44 @@ Return ONLY the Mermaid syntax - no explanations or markdown blocks.`
     // Sanitize and validate the response
     const sanitizedDiagram = sanitizeMermaidResponse(rawDiagram);
     
-    // Fallback diagram if sanitization results in empty or invalid content
-    const fallbackDiagram = `flowchart TD
+    // Count nodes in the diagram to enforce the 8-node limit
+    const nodeCount = (sanitizedDiagram.match(/\w+[\[\{(].*?[\]\})]|-->/g) || []).length;
+    const actualNodeCount = (sanitizedDiagram.match(/\w+[\[\{(].*?[\]\})]/g) || []).length;
+    
+    console.log(`Generated diagram has ${actualNodeCount} nodes (limit: 8)`);
+    
+    // If diagram exceeds node limit, use a simplified fallback
+    let finalDiagram = sanitizedDiagram;
+    
+    if (actualNodeCount > 8) {
+      console.log('Diagram exceeds 8-node limit, using simplified fallback');
+      finalDiagram = `flowchart TD
+    A[/Frontend/] --> B[API Layer]
+    B --> C[Business Logic]
+    C --> D[(Database)]
+    B --> E{{External APIs}}
+    F>Users] --> A
+    C --> G[Background Jobs]
+    G --> H[Notifications]`;
+    } else if (sanitizedDiagram.trim().length <= 20) {
+      // Original fallback for empty/invalid content
+      finalDiagram = `flowchart TD
     A((Meeting Start)) --> B[Discussion begins]
     B --> C[Participants share ideas]
     C --> D{Decision needed}
     D --> E[Action items assigned]
     E --> F((Meeting End))`;
-    
-    const finalDiagram = sanitizedDiagram.trim().length > 20 ? sanitizedDiagram : fallbackDiagram;
+    }
     
     return NextResponse.json({ 
       diagram: finalDiagram,
       participants: meetingParticipants,
       metadata: {
-        nodeCount: (finalDiagram.match(/\w+[\[\{(].*?[\]\})]|-->/g) || []).length,
+        nodeCount: (finalDiagram.match(/\w+[\[\{(].*?[\]\})]/g) || []).length,
         generated: new Date().toISOString(),
-        fallbackUsed: finalDiagram === fallbackDiagram
+        fallbackUsed: actualNodeCount > 8 || sanitizedDiagram.trim().length <= 20,
+        nodeLimit: 8,
+        exceedsLimit: actualNodeCount > 8
       }
     });
   } catch (error) {
