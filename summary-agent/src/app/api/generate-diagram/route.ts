@@ -5,6 +5,19 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+// Basic sanitization for already well-formatted diagrams
+function basicSanitize(content: string): string {
+  return content
+    // Remove dangerous content
+    .replace(/<script[^>]*>.*?<\/script>/gi, '')
+    .replace(/javascript:/gi, '')
+    .replace(/on\w+\s*=/gi, '')
+    // Clean up extra whitespace while preserving structure
+    .replace(/\r\n/g, '\n')
+    .replace(/\n\s*\n\s*\n/g, '\n\n') // Remove excessive blank lines
+    .trim();
+}
+
 // Function to sanitize and validate Mermaid syntax
 function sanitizeMermaidResponse(response: string): string {
   // Remove any markdown code blocks
@@ -13,8 +26,17 @@ function sanitizeMermaidResponse(response: string): string {
   // Remove any extra whitespace and normalize line endings
   cleaned = cleaned.trim().replace(/\r\n/g, '\n');
   
-  // If everything is on one line after the flowchart declaration, split it
+  // Check if the diagram is already properly formatted (multi-line)
   const lines = cleaned.split('\n');
+  const hasMultipleLines = lines.length > 1;
+  const startsWithValidDiagram = /^(flowchart|graph)\s+(TD|LR|TB|RL)/i.test(lines[0]);
+  
+  // If it's already properly formatted, just do basic sanitization
+  if (hasMultipleLines && startsWithValidDiagram) {
+    return basicSanitize(cleaned);
+  }
+  
+  // Otherwise, use the complex sanitization for single-line syntax
   const expandedLines: string[] = [];
   
   for (const line of lines) {
@@ -156,7 +178,7 @@ function extractParticipants(transcript: string): string[] {
 
 export async function POST(request: NextRequest) {
   try {
-    const { transcript, participants } = await request.json();
+    const { transcript, participants, summary } = await request.json();
     
     if (!transcript || typeof transcript !== 'string') {
       return NextResponse.json(
@@ -182,54 +204,71 @@ export async function POST(request: NextRequest) {
       messages: [
         {
           role: 'system',
-          content: `You are a meeting flowchart generation expert. Create detailed, well-structured Mermaid flowcharts from meeting transcripts.
+          content: `You are a system architecture diagram expert. Create technical system architecture diagrams using Mermaid syntax based on meeting discussions about software systems, applications, or technical solutions.
 
-CRITICAL SYNTAX RULES:
+DIAGRAM FOCUS:
+Analyze the meeting content and create a system architecture diagram that shows:
+1. **System Components**: Services, databases, APIs, frontend/backend components
+2. **Data Flow**: How information moves between components
+3. **User Interactions**: How users interact with the system
+4. **External Dependencies**: Third-party services, APIs, external systems
+5. **Technical Stack**: Technologies, frameworks, platforms mentioned
+6. **Infrastructure**: Deployment, hosting, storage solutions
+
+MERMAID SYNTAX RULES:
 1. Return ONLY valid Mermaid syntax - no explanations, no markdown code blocks
-2. Start with "flowchart TD" or "flowchart LR"
-3. Use ONLY these node shapes:
-   - A[Process] for actions/statements
-   - B{Decision} for questions/choices
-   - C((Start/End)) for meeting start/end
-   - D>Input] for participant inputs
-4. Node IDs must be single letters: A, B, C, D, etc.
-5. Arrows must be: A --> B (with spaces)
-6. Labels must be in brackets/braces with NO special characters except spaces, hyphens, and periods
-7. Maximum 15 nodes for readability
-8. NO subgraphs, NO comments, NO complex syntax
+2. Start with "flowchart TD" (top-down) or "flowchart LR" (left-right)
+3. Use these node shapes for system components:
+   - A[Service/Component] for services, APIs, applications
+   - B[(Database)] for databases, storage
+   - C{{External API}} for third-party services
+   - D[/User Interface/] for frontend, UI components
+   - E>User Input] for user actions/inputs
+   - F((Start/End)) for system entry/exit points
+4. Node IDs: Single letters A, B, C, etc.
+5. Arrows: A --> B (with spaces)
+6. Labels: Clear, technical component names
+7. Maximum 20 nodes for complex systems
+8. NO subgraphs, NO comments, NO special characters in labels
 
-VALID EXAMPLE:
+VALID ARCHITECTURE EXAMPLE:
 flowchart TD
-    A((Meeting Start)) --> B[Alex introduces topic]
-    B --> C{Sarah asks question}
-    C --> D[Discussion follows]
-    D --> E[Decision made]
-    E --> F((Meeting End))
+    A[/Web Frontend/] --> B[API Gateway]
+    B --> C[Auth Service]
+    B --> D[User Service]
+    C --> E[(User Database)]
+    D --> E
+    F{{Payment API}} --> B
+    G>User Login] --> A
 
-INVALID EXAMPLES TO AVOID:
-- Node labels with quotes, colons, or special characters
-- Complex node shapes like rectangles with rounded corners
-- Subgraph syntax
-- Comments with %%
-- Multi-word node IDs`
+FOCUS ON TECHNICAL SYSTEMS:
+- If discussing software: Show app architecture, data flow, APIs
+- If discussing infrastructure: Show deployment, hosting, networking
+- If discussing features: Show how features integrate with existing system
+- If discussing data: Show data sources, processing, storage
+- If non-technical meeting: Create a simple process flow instead`
         },
         {
           role: 'user',
-          content: `Create a Mermaid flowchart for this meeting transcript.
+          content: `Create a system architecture diagram based on this meeting discussion.
 
-Participants: ${meetingParticipants.join(', ')}
+${summary ? `MEETING SUMMARY:\n${summary}\n\n` : ''}PARTICIPANTS: ${meetingParticipants.join(', ')}
 
-Transcript:
+TRANSCRIPT:
 ${transcript}
 
-Generate a flowchart showing:
-1. Key discussion flow and topics
-2. Participant contributions and interactions  
-3. Decisions made and action items
-4. Timeline progression of the meeting
-5. Any important outcomes or next steps
+INSTRUCTIONS:
+Analyze the meeting content and create a system architecture diagram that represents:
+1. **Technical systems, services, or applications** discussed
+2. **Data flow and component interactions** mentioned
+3. **User interfaces and user interactions** described
+4. **External services, APIs, or dependencies** referenced
+5. **Infrastructure or deployment architecture** if discussed
+6. **Technology stack components** (databases, frameworks, etc.)
 
-Return only the Mermaid syntax.`
+If the meeting is non-technical, create a simple process flow of the main workflow or decision process discussed.
+
+Return ONLY the Mermaid syntax - no explanations or markdown blocks.`
         }
       ],
       max_tokens: 1500,

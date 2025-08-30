@@ -47,9 +47,31 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
   // State for diagram rendering
   const [diagramSvg, setDiagramSvg] = useState<string>('');
   const [diagramError, setDiagramError] = useState<string>('');
+  
+  // State for meeting type selection
+  const [meetingType, setMeetingType] = useState<string>('general');
+  const [availableMeetingTypes, setAvailableMeetingTypes] = useState<Array<{id: string, name: string, description: string}>>([]);
+
+  // Function to get complete transcript from all segments
+  const getCompleteTranscript = useCallback(() => {
+    if (transcriptSegments.length === 0) return transcript;
+    
+    // Combine all transcript segments with timestamps for context
+    const completeTranscript = transcriptSegments
+      .map((segment, index) => `[Segment ${index + 1} - ${segment.timestamp.toLocaleTimeString()}]: ${segment.text}`)
+      .join('\n\n');
+    
+    // Add current transcript if it exists and is different from the last segment
+    if (transcript && transcript.trim() && 
+        (!transcriptSegments.length || transcriptSegments[transcriptSegments.length - 1].text !== transcript.trim())) {
+      return completeTranscript + `\n\n[Current]: ${transcript}`;
+    }
+    
+    return completeTranscript;
+  }, [transcript, transcriptSegments]);
 
   // Function to generate summary from transcript
-  const generateSummary = async (text: string) => {
+  const generateSummary = useCallback(async (text: string) => {
     if (!text.trim() || text.length < 50) return; // Only summarize if there's substantial content
     
     setIsGeneratingSummary(true);
@@ -59,7 +81,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ transcript: text }),
+        body: JSON.stringify({ transcript: text, meetingType }),
       });
       
       if (response.ok) {
@@ -73,7 +95,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     } finally {
       setIsGeneratingSummary(false);
     }
-  };
+  }, [meetingType]);
 
   // Function to generate diagram from transcript
   const generateDiagram = useCallback(async (text: string) => {
@@ -88,7 +110,10 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ transcript: text }),
+        body: JSON.stringify({ 
+          transcript: text,
+          summary: summary || undefined // Include current summary if available
+        }),
       });
       
       if (response.ok) {
@@ -100,21 +125,44 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
           const diagramId = `diagram-${Date.now()}`;
           
           try {
+            // Log the diagram code for debugging
+            console.log('Attempting to render diagram:', diagramCode);
+            
             // Render the Mermaid diagram
             const { svg } = await mermaid.render(diagramId, diagramCode);
+            
+            console.log('Mermaid rendering successful');
             
             // Use React state instead of direct DOM manipulation
             setDiagramSvg(svg);
             setDiagram(diagramCode);
             setDiagramError('');
-          } catch (mermaidError) {
+                    } catch (mermaidError) {
             console.error('Mermaid rendering error:', mermaidError);
             console.error('Invalid diagram code:', diagramCode);
             
-
-            // Set error state instead of manipulating DOM
-            setDiagramSvg('');
-            setDiagramError(`Failed to render diagram. The generated Mermaid syntax may be invalid.\n\nRaw diagram code:\n${diagramCode}`);
+            // Try a fallback: clean the diagram code and try again
+            try {
+              console.log('Attempting fallback rendering with cleaned code...');
+              const cleanedCode = diagramCode
+                .replace(/\r\n/g, '\n')
+                .replace(/\n\s*\n\s*\n/g, '\n\n')
+                .trim();
+              
+              const fallbackId = `diagram-fallback-${Date.now()}`;
+              const { svg } = await mermaid.render(fallbackId, cleanedCode);
+              
+              console.log('Fallback rendering successful');
+              setDiagramSvg(svg);
+              setDiagram(cleanedCode);
+              setDiagramError('');
+            } catch (fallbackError) {
+              console.error('Fallback rendering also failed:', fallbackError);
+              
+              // Set error state instead of manipulating DOM
+              setDiagramSvg('');
+              setDiagramError(`Failed to render diagram. The generated Mermaid syntax may be invalid.\n\nRaw diagram code:\n${diagramCode}`);
+            }
           }
         }
       } else {
@@ -127,7 +175,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
     } finally {
       setIsGeneratingDiagram(false);
     }
-  }, []);
+  }, [summary]);
 
   // Debounced summary and diagram generation
   useEffect(() => {
@@ -138,14 +186,16 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
       clearTimeout(diagramTimeoutRef.current);
     }
     
-    if (transcript.length > 0) {
+    if (transcript.length > 0 || transcriptSegments.length > 0) {
+      const completeTranscript = getCompleteTranscript();
+      
       summaryTimeoutRef.current = setTimeout(() => {
-        generateSummary(transcript);
+        generateSummary(completeTranscript);
       }, 2000); // Wait 2 seconds after transcript stops updating
       
       // Generate diagram with a longer delay to allow more content
       diagramTimeoutRef.current = setTimeout(() => {
-        generateDiagram(transcript);
+        generateDiagram(completeTranscript);
       }, 5000); // Wait 5 seconds for diagram generation
     }
     
@@ -157,7 +207,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
         clearTimeout(diagramTimeoutRef.current);
       }
     };
-  }, [transcript, generateDiagram]);
+  }, [transcript, transcriptSegments, generateDiagram, generateSummary, getCompleteTranscript]);
 
   // Function to add new transcript segment
   const addTranscriptSegment = (text: string) => {
@@ -240,6 +290,23 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
       connectToSession(true);
     }, 1000);
   };
+
+  // Fetch available meeting types on component mount
+  useEffect(() => {
+    const fetchMeetingTypes = async () => {
+      try {
+        const response = await fetch('/api/summarize');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableMeetingTypes(data.meetingTypes || []);
+        }
+      } catch (error) {
+        console.error('Failed to fetch meeting types:', error);
+      }
+    };
+    
+    fetchMeetingTypes();
+  }, []);
 
   useEffect(() => {
     // Initialize Mermaid
@@ -468,10 +535,33 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
   }, []);
 
   return (
-    <div className={`p-6 bg-white rounded-lg shadow-lg ${className}`}>
-      <h2 className="text-2xl font-bold mb-4 text-gray-800">
-        Voice Meeting Assistant
-      </h2>
+    <div className={`p-6 bg-white rounded-lg shadow-lg max-w-none w-full ${className}`}>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">
+          Voice Meeting Assistant
+        </h2>
+        
+        {/* Meeting Type Selector */}
+        {availableMeetingTypes.length > 0 && (
+          <div className="flex items-center gap-3">
+            <label htmlFor="meeting-type" className="text-sm font-medium text-gray-700">
+              Meeting Type:
+            </label>
+            <select
+              id="meeting-type"
+              value={meetingType}
+              onChange={(e) => setMeetingType(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              {availableMeetingTypes.map((type) => (
+                <option key={type.id} value={type.id} title={type.description}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
       
       <div className="space-y-4">
         {!isConnected ? (
@@ -509,75 +599,22 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                   </button>
                 </div>
                 
-                {/* Three-column layout for transcript, summary, and diagram */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                  {/* Transcript Segments List */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
-                      📝 Transcript Segments
-                      {transcriptSegments.length > 0 && (
-                        <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                          {transcriptSegments.length} segments
-                        </span>
-                      )}
-                    </h3>
-                    <div className="bg-white rounded border max-h-96 overflow-y-auto">
-                      {transcriptSegments.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">
-                          No transcript segments yet...
-                        </div>
-                      ) : (
-                        <div className="divide-y divide-gray-100">
-                          {transcriptSegments.map((segment, index) => (
-                            <div key={segment.id} className="p-3 hover:bg-gray-50">
-                              <div className="flex items-start justify-between mb-2">
-                                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                  Segment {index + 1}
-                                </span>
-                                <span className="text-xs text-gray-400">
-                                  {segment.timestamp.toLocaleTimeString()}
-                                </span>
-                              </div>
-                              <p className="text-gray-800 text-sm leading-relaxed">
-                                {segment.text}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Session Summary */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2">
-                      🎯 Session Summary
-                    </h3>
-                    <div className="bg-white p-3 rounded border max-h-96 overflow-y-auto">
-                      {summary ? (
-                        <div className="text-gray-800 text-sm leading-relaxed prose prose-sm max-w-none">
-                          <ReactMarkdown>{summary}</ReactMarkdown>
-                        </div>
-                      ) : (
-                        <p className="text-gray-500 text-sm">No summary generated yet...</p>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Meeting Diagram */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                      📊 Meeting Flowchart
+                {/* Two-column layout: diagram on left, transcript+summary on right */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Meeting Diagram - Takes up 2 columns (left side) */}
+                  <div className="lg:col-span-2 bg-gray-50 p-6 rounded-lg">
+                    <h3 className="text-lg font-medium text-gray-700 mb-4 flex items-center">
+                      🏗️ System Architecture Diagram
                       {isGeneratingDiagram && (
                         <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full animate-pulse">
                           Generating...
                         </span>
                       )}
                     </h3>
-                    <div className="bg-white p-3 rounded border max-h-96 overflow-auto">
-                      <div className="w-full">
+                    <div className="bg-white p-6 rounded border min-h-96 overflow-auto">
+                      <div className="w-full h-full">
                         {diagramError ? (
-                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
                             <p className="text-red-800 text-sm mb-2">Failed to render diagram</p>
                             <details className="mt-2">
                               <summary className="text-xs text-red-600 cursor-pointer">Show details</summary>
@@ -589,14 +626,73 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                         ) : diagramSvg ? (
                           <div dangerouslySetInnerHTML={{ __html: diagramSvg }} />
                         ) : isGeneratingDiagram ? (
-                          <div className="text-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                            <p className="text-gray-500 text-sm">Generating flowchart...</p>
+                          <div className="text-center py-16">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                            <p className="text-gray-500 text-base">Generating system architecture diagram...</p>
                           </div>
                         ) : (
-                          <p className="text-gray-500 text-sm text-center py-8">
-                            Diagram will appear here as you speak...
-                          </p>
+                          <div className="text-center py-16">
+                            <div className="text-6xl mb-4">📊</div>
+                            <p className="text-gray-500 text-base">
+                              System architecture diagram will appear here as you discuss technical systems...
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right column: Transcript and Summary stacked */}
+                  <div className="space-y-6">
+                    {/* Transcript Segments List */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
+                        📝 Transcript Segments
+                        {transcriptSegments.length > 0 && (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                            {transcriptSegments.length} segments
+                          </span>
+                        )}
+                      </h3>
+                      <div className="bg-white rounded border max-h-64 overflow-y-auto">
+                        {transcriptSegments.length === 0 ? (
+                          <div className="p-4 text-center text-gray-500 text-sm">
+                            No transcript segments yet...
+                          </div>
+                        ) : (
+                          <div className="divide-y divide-gray-100">
+                            {transcriptSegments.map((segment, index) => (
+                              <div key={segment.id} className="p-3 hover:bg-gray-50">
+                                <div className="flex items-start justify-between mb-2">
+                                  <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                    Segment {index + 1}
+                                  </span>
+                                  <span className="text-xs text-gray-400">
+                                    {segment.timestamp.toLocaleTimeString()}
+                                  </span>
+                                </div>
+                                <p className="text-gray-800 text-sm leading-relaxed">
+                                  {segment.text}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Session Summary */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-sm font-medium text-gray-700 mb-2">
+                        🎯 Live Summary
+                      </h3>
+                      <div className="bg-white p-3 rounded border max-h-64 overflow-y-auto">
+                        {summary ? (
+                          <div className="text-gray-800 text-sm leading-relaxed prose prose-sm max-w-none">
+                            <ReactMarkdown>{summary}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="text-gray-500 text-sm">No summary generated yet...</p>
                         )}
                       </div>
                     </div>
@@ -613,8 +709,15 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
               </span>
               <div className="flex gap-2">
                 <button
-                  onClick={() => generateDiagram(transcript)}
-                  disabled={!transcript || transcript.length < 100 || isGeneratingDiagram}
+                  onClick={() => {
+                    const completeTranscript = getCompleteTranscript();
+                    generateDiagram(completeTranscript);
+                  }}
+                  disabled={
+                    (!transcript && transcriptSegments.length === 0) || 
+                    getCompleteTranscript().length < 100 || 
+                    isGeneratingDiagram
+                  }
                   className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
                 >
                   Generate Diagram
@@ -634,84 +737,22 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
               </div>
             </div>
             
-            {/* Three-column layout for transcript, summary, and diagram */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Transcript Segments List */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
-                  📝 Transcript Segments
-                  {transcriptSegments.length > 0 && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                      {transcriptSegments.length} segments
-                    </span>
-                  )}
-                </h3>
-                <div className="bg-white rounded border max-h-96 overflow-y-auto">
-                  {transcriptSegments.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500 text-sm">
-                      Start speaking to see transcript segments...
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-gray-100">
-                      {transcriptSegments.map((segment, index) => (
-                        <div key={segment.id} className="p-3 hover:bg-gray-50">
-                          <div className="flex items-start justify-between mb-2">
-                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                              Segment {index + 1}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {segment.timestamp.toLocaleTimeString()}
-                            </span>
-                          </div>
-                          <p className="text-gray-800 text-sm leading-relaxed">
-                            {segment.text}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Real-time Summary */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                  🎯 Live Summary
-                  {isGeneratingSummary && (
-                    <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full animate-pulse">
-                      Updating...
-                    </span>
-                  )}
-                </h3>
-                <div className="bg-white p-3 rounded border max-h-96 overflow-y-auto">
-                  {summary ? (
-                    <div className="text-gray-800 text-sm leading-relaxed prose prose-sm max-w-none">
-                      <ReactMarkdown>{summary}</ReactMarkdown>
-                    </div>
-                  ) : transcriptSegments.length > 0 ? (
-                    <div className="text-gray-500 text-sm">
-                      {isGeneratingSummary ? 'Generating summary...' : 'Summary will appear here shortly...'}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 text-sm">Summary will appear here as you speak...</p>
-                  )}
-                </div>
-              </div>
-              
-              {/* Live Meeting Diagram */}
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
-                  📊 Live Flowchart
+            {/* Two-column layout: diagram on left, transcript+summary on right */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Live Meeting Diagram - Takes up 2 columns (left side) */}
+              <div className="lg:col-span-2 bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-medium text-gray-700 mb-4 flex items-center">
+                                        🏗️ System Architecture Diagram
                   {isGeneratingDiagram && (
                     <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full animate-pulse">
                       Generating...
                     </span>
                   )}
                 </h3>
-                <div className="bg-white p-3 rounded border max-h-96 overflow-auto">
-                  <div className="w-full">
+                <div className="bg-white p-6 rounded border min-h-96 overflow-auto">
+                  <div className="w-full h-full">
                     {diagramError ? (
-                      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="p-6 bg-red-50 border border-red-200 rounded-lg">
                         <p className="text-red-800 text-sm mb-2">Failed to render diagram</p>
                         <details className="mt-2">
                           <summary className="text-xs text-red-600 cursor-pointer">Show details</summary>
@@ -723,14 +764,82 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
                     ) : diagramSvg ? (
                       <div dangerouslySetInnerHTML={{ __html: diagramSvg }} />
                     ) : isGeneratingDiagram ? (
-                      <div className="text-center py-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-2"></div>
-                        <p className="text-gray-500 text-sm">Generating live flowchart...</p>
+                      <div className="text-center py-16">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+                        <p className="text-gray-500 text-base">Generating system architecture diagram...</p>
                       </div>
                     ) : (
-                      <p className="text-gray-500 text-sm text-center py-8">
-                        Flowchart will appear here as you speak...
-                      </p>
+                      <div className="text-center py-16">
+                        <div className="text-6xl mb-4">📊</div>
+                        <p className="text-gray-500 text-base">
+                          System architecture diagram will appear here as you discuss technical systems...
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right column: Transcript and Summary stacked */}
+              <div className="space-y-6">
+                {/* Transcript Segments List */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center justify-between">
+                    📝 Transcript Segments
+                    {transcriptSegments.length > 0 && (
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        {transcriptSegments.length} segments
+                      </span>
+                    )}
+                  </h3>
+                  <div className="bg-white rounded border max-h-64 overflow-y-auto">
+                    {transcriptSegments.length === 0 ? (
+                      <div className="p-4 text-center text-gray-500 text-sm">
+                        Start speaking to see transcript segments...
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-100">
+                        {transcriptSegments.map((segment, index) => (
+                          <div key={segment.id} className="p-3 hover:bg-gray-50">
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                                Segment {index + 1}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {segment.timestamp.toLocaleTimeString()}
+                              </span>
+                            </div>
+                            <p className="text-gray-800 text-sm leading-relaxed">
+                              {segment.text}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Real-time Summary */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="text-sm font-medium text-gray-700 mb-2 flex items-center">
+                    🎯 Live Summary
+                    {isGeneratingSummary && (
+                      <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full animate-pulse">
+                        Updating...
+                      </span>
+                    )}
+                  </h3>
+                  <div className="bg-white p-3 rounded border max-h-64 overflow-y-auto">
+                    {summary ? (
+                      <div className="text-gray-800 text-sm leading-relaxed prose prose-sm max-w-none">
+                        <ReactMarkdown>{summary}</ReactMarkdown>
+                      </div>
+                    ) : transcriptSegments.length > 0 ? (
+                      <div className="text-gray-500 text-sm">
+                        {isGeneratingSummary ? 'Generating summary...' : 'Summary will appear here shortly...'}
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">Summary will appear here as you speak...</p>
                     )}
                   </div>
                 </div>
@@ -742,7 +851,7 @@ export default function VoiceAgent({ className = '' }: VoiceAgentProps) {
               <p>🎤 Speak naturally to interact with your meeting assistant</p>
               <p>📝 Each speech segment appears as a separate item in the transcript list</p>
               <p>🎯 AI-generated summaries update automatically in the middle column</p>
-              <p>📊 Live flowcharts are generated showing meeting flow and decisions</p>
+              <p>🏗️ System architecture diagrams are generated from technical discussions</p>
               <p>⏱️ Summaries refresh every 2 seconds, diagrams every 5 seconds after you stop speaking</p>
               <p>🗑️ Use &quot;Clear All&quot; to reset all session data</p>
               <p>💾 Your session data is preserved even after disconnecting</p>
